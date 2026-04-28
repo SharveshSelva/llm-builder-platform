@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  PROJECT_ID: YOUR_PROJECT_ID   # replace after running deploy/setup.sh
+  PROJECT_ID: llm-builder-platform
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
 
