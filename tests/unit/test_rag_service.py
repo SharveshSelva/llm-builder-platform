@@ -12,7 +12,7 @@ class TestChunkPdf:
         import io
         writer = PdfWriter()
         for text in pages:
-            page = writer.add_blank_page(width=612, height=792)
+            writer.add_blank_page(width=612, height=792)
         buf = io.BytesIO()
         writer.write(buf)
         return buf.getvalue()
@@ -50,7 +50,7 @@ class TestCitationBuilding:
 
     @pytest.mark.asyncio
     async def test_no_chunks_returns_no_docs_message(self):
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import patch
         from backend.services.rag_service import chat
 
         with patch("backend.services.rag_service.vector_store.query", return_value=[]):

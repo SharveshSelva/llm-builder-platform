@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 from backend.services.llm import _pick_model, call_llm
 from backend.config import get_settings
 

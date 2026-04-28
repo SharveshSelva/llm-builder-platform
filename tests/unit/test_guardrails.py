@@ -1,4 +1,3 @@
-import pytest
 from backend.services.guardrails import (
     detect_prompt_injection,
     detect_bias,

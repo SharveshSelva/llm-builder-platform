@@ -1,6 +1,5 @@
 import hashlib
 import json
-import redis.asyncio as aioredis
 from sentence_transformers import SentenceTransformer
 from backend.config import get_settings
 
