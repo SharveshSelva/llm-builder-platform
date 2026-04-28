@@ -71,7 +71,7 @@ class TestCheckToxicity:
 
 class TestRedactPii:
     def test_no_pii_unchanged(self):
-        text = "The weather is sunny today."
+        text = "The sky is blue and the grass is green."
         redacted, entities = redact_pii(text)
         assert entities == []
 

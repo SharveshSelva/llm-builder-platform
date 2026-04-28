@@ -6,14 +6,14 @@ _analyzer = AnalyzerEngine()
 _anonymizer = AnonymizerEngine()
 
 INJECTION_PATTERNS = [
-    r"ignore (all |previous |above |prior )?instructions?",
-    r"disregard (your |all |previous )?instructions?",
+    r"ignore.{0,40}instructions?",
+    r"disregard.{0,30}instructions?",
     r"you are now",
     r"act as (a |an )?",
     r"pretend (you are|to be)",
     r"system prompt",
     r"jailbreak",
-    r"DAN mode",
+    r"dan mode",
 ]
 
 # Demographic bias — stereotyping statements about gender, race, age, religion
