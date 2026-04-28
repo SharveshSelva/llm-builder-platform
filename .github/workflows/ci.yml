@@ -84,25 +84,20 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/ai-platform/frontend:latest
           docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/ai-platform/frontend:${{ github.sha }}
 
-      - name: Update backend image in Cloud Run YAML
-        run: |
-          sed -i "s|REGION-docker.pkg.dev/PROJECT_ID|${{ env.REGISTRY }}/${{ env.PROJECT_ID }}|g" \
-            deploy/backend.cloudrun.yaml
-          sed -i "s|PROJECT_ID-chroma|${{ env.PROJECT_ID }}-chroma|g" \
-            deploy/backend.cloudrun.yaml
-
       - name: Deploy backend to Cloud Run
         run: |
-          gcloud run services replace deploy/backend.cloudrun.yaml \
+          gcloud run deploy ai-platform-backend \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/ai-platform/backend:${{ github.sha }} \
             --region ${{ env.REGION }} \
+            --platform managed \
+            --memory 2Gi \
+            --cpu 2 \
+            --timeout 300 \
+            --max-instances 3 \
+            --set-secrets GROQ_API_KEY=groq-api-key:latest,REDIS_URL=redis-url:latest,TAVILY_API_KEY=tavily-api-key:latest \
+            --set-env-vars CHROMA_DATA_PATH=/tmp/chroma_data \
+            --allow-unauthenticated \
             --quiet
-
-      - name: Make backend publicly accessible
-        run: |
-          gcloud run services add-iam-policy-binding ai-platform-backend \
-            --region ${{ env.REGION }} \
-            --member="allUsers" \
-            --role="roles/run.invoker" || true
 
       - name: Get backend URL
         id: backend-url
@@ -113,25 +108,19 @@ jobs:
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Backend URL: $URL"
 
-      - name: Update frontend image + backend URL in Cloud Run YAML
-        run: |
-          sed -i "s|REGION-docker.pkg.dev/PROJECT_ID|${{ env.REGISTRY }}/${{ env.PROJECT_ID }}|g" \
-            deploy/frontend.cloudrun.yaml
-          sed -i "s|https://ai-platform-backend-HASH-uc.a.run.app|${{ steps.backend-url.outputs.url }}|g" \
-            deploy/frontend.cloudrun.yaml
-
       - name: Deploy frontend to Cloud Run
         run: |
-          gcloud run services replace deploy/frontend.cloudrun.yaml \
+          gcloud run deploy ai-platform-frontend \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/ai-platform/frontend:${{ github.sha }} \
             --region ${{ env.REGION }} \
+            --platform managed \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 300 \
+            --max-instances 2 \
+            --set-env-vars BACKEND_URL=${{ steps.backend-url.outputs.url }} \
+            --allow-unauthenticated \
             --quiet
-
-      - name: Make frontend publicly accessible
-        run: |
-          gcloud run services add-iam-policy-binding ai-platform-frontend \
-            --region ${{ env.REGION }} \
-            --member="allUsers" \
-            --role="roles/run.invoker" || true
 
       - name: Print deployment URLs
         run: |
@@ -143,4 +132,5 @@ jobs:
           echo "Deployment complete!"
           echo "Backend:  ${{ steps.backend-url.outputs.url }}"
           echo "Frontend: $FRONTEND_URL"
+          echo "========================================"
           echo "========================================"
