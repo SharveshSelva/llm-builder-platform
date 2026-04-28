@@ -1,0 +1,53 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: ai-platform-backend
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+        # GCS volume mount — ChromaDB writes here, persists across deployments
+        run.googleapis.com/volumes: >
+          [{"name":"chroma-vol","gcs":{"bucket":"PROJECT_ID-chroma","readOnly":false}}]
+        run.googleapis.com/volume-mounts: >
+          [{"name":"chroma-vol","mountPath":"/chroma_data"}]
+    spec:
+      timeoutSeconds: 300
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/ai-platform/backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CHROMA_DATA_PATH
+              value: /chroma_data
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: groq-api-key
+                  key: latest
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-url
+                  key: latest
+            - name: TAVILY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tavily-api-key
+                  key: latest
+          resources:
+            limits:
+              memory: 2Gi
+              cpu: "2"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
