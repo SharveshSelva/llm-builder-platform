@@ -96,6 +96,7 @@ jobs:
             --max-instances 3 \
             --set-secrets GROQ_API_KEY=groq-api-key:latest,REDIS_URL=redis-url:latest,TAVILY_API_KEY=tavily-api-key:latest \
             --set-env-vars CHROMA_DATA_PATH=/tmp/chroma_data \
+            --port 8000 \
             --allow-unauthenticated \
             --quiet
 
