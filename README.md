@@ -1,111 +1,149 @@
 # Production AI Platform
 
-A single production-grade AI platform combining:
+A production-grade AI platform demonstrating the full LLM engineering stack — RAG pipelines, multi-agent orchestration, evaluation frameworks, guardrails, and CI/CD deployment.
 
-- **Prompt Engineering Playground** — A/B testing, Pydantic structured outputs
-- **RAG Chatbot** — ChromaDB, PDF ingestion, citations
-- **LangGraph Research Agent** — search → reflect → summarize
-- **CrewAI Multi-Agent Pipeline** — Researcher → Writer → Editor
-- **RAGAS Evaluation + Guardrails** — faithfulness scoring, PII redaction, injection detection
-- **Model Fallback Chain** — cost-accuracy toggle (fast/smart)
-- **Full Docker + async FastAPI backend**
+**Live Demo:** https://ai-platform-frontend-vtvta23tia-uc.a.run.app
+**GitHub:** https://github.com/SharveshSelva/llm-builder-platform
 
-## Quick Start
+---
 
-### 1. Configure environment
+## Features
 
-```bash
-cp .env.example .env
-# Edit .env — fill in ANTHROPIC_API_KEY (required), OPENAI_API_KEY, TAVILY_API_KEY
+| Feature                        | Description                                                              |
+|-------------------------------|--------------------------------------------------------------------------|
+| Prompt Playground             | A/B testing, structured JSON outputs, live SSE streaming                 |
+| RAG Chatbot                   | PDF ingestion, ChromaDB vector search, citations by source + page        |
+| Research Agent (LangGraph)    | StateGraph: search → draft → reflect → refine                           |
+| CrewAI Pipeline               | 3-agent sequential flow: Researcher → Writer → Editor                   |
+| AutoGen Q&A                   | 3-agent GroupChat: Assistant → Critic → Refiner with APPROVE/REVISE loop|
+| RAGAS Evaluation              | Faithfulness, Answer Relevancy, Context Precision (LLM-as-judge)        |
+| DeepEval                      | Faithfulness, Relevancy, Hallucination scoring (reference-free)         |
+| Guardrails                    | Prompt injection detection, PII redaction (Presidio), bias + toxicity   |
+| Monitoring                    | Per-request latency, token count, cost logging via Redis                 |
+| Continuous Eval               | Auto-scores every RAG response in the background, surfaced in dashboard  |
+
+---
+
+## Models
+
+| Mode     | Model                    | Use Case                  |
+|----------|--------------------------|---------------------------|
+| fast     | llama-3.1-8b-instant     | Default, low latency       |
+| smart    | llama-3.1-70b-versatile  | Complex reasoning          |
+| fallback | gemma2-9b-it             | Timeout / error fallback   |
+
+All models served via **Groq** (free tier).
+
+---
+
+## Architecture
+
+```
+User
+ └── Streamlit Frontend (Cloud Run :8501)
+          └── FastAPI Backend (Cloud Run :8000)
+                   ├── ChromaDB (vector store, local /tmp)
+                   ├── Groq API (LLM calls)
+                   ├── Upstash Redis (embedding cache + logs)
+                   └── GCP Secret Manager (API keys)
 ```
 
-### 2. Local development
+```
+backend/
+├── routers/
+│   ├── prompt.py      — /prompt/run, /compare, /stream
+│   ├── rag.py         — /rag/ingest, /chat
+│   ├── agents.py      — /agents/research, /crew, /autogen
+│   └── eval.py        — /eval/run, /deepeval, /logs, /rag-eval-logs
+├── services/
+│   ├── llm.py         — fallback chain (fast → fallback on error)
+│   ├── embeddings.py  — sentence-transformers + Redis cache
+│   ├── vector_store.py— ChromaDB add/query
+│   ├── rag_service.py — PDF chunking + RAG chat + background eval
+│   ├── guardrails.py  — injection, bias, toxicity, PII redaction
+│   ├── evaluation.py  — RAGAS scoring
+│   ├── deepeval_service.py — DeepEval LLM-as-judge metrics
+│   ├── research_agent.py   — LangGraph StateGraph agent
+│   ├── crew_service.py     — CrewAI-style 3-agent pipeline
+│   └── autogen_service.py  — AutoGen GroupChat pattern
+└── middleware/
+    └── request_logger.py   — latency, tokens, cost per request
+```
+
+---
+
+## Local Development
+
+### 1. Clone and configure
 
 ```bash
-# Start infrastructure
-docker-compose up redis chromadb -d
+git clone https://github.com/SharveshSelva/llm-builder-platform.git
+cd llm-builder-platform
+cp .env.example .env
+# Edit .env — add GROQ_API_KEY and TAVILY_API_KEY
+```
 
-# Install dependencies
-pip install -r requirements.txt
+### 2. Install dependencies
 
-# Start backend
+```bash
+pip install -r requirements.txt --prefer-binary
+python -m spacy download en_core_web_lg
+```
+
+### 3. Run
+
+```bash
+# Terminal 1 — backend
 uvicorn backend.main:app --reload --port 8000
 
-# Start frontend (new terminal)
+# Terminal 2 — frontend
 streamlit run frontend/app.py --server.port 8501
 ```
 
-### 3. Full Docker stack
+| Service  | URL                        |
+|----------|----------------------------|
+| Frontend | http://localhost:8501      |
+| Backend  | http://localhost:8000/docs |
+
+---
+
+## Tests
 
 ```bash
-docker-compose up --build
+pytest tests/ -v
 ```
 
-| Service   | URL                          |
-|-----------|------------------------------|
-| Frontend  | http://localhost:8501        |
-| Backend   | http://localhost:8000/docs   |
-| ChromaDB  | http://localhost:8001        |
+- `tests/unit/` — guardrails, LLM service, RAG chunking (mocked Groq)
+- `tests/integration/` — API endpoints via FastAPI TestClient
+
+---
+
+## CI/CD
+
+Every push to `main`:
+1. Ruff lint
+2. pytest unit + integration tests
+3. Docker build → push to GCP Artifact Registry
+4. Deploy to GCP Cloud Run (backend + frontend)
+
+---
 
 ## Smoke Tests
 
 ```bash
 # Health check
-curl http://localhost:8000/health
+curl https://ai-platform-backend-vtvta23tia-uc.a.run.app/health
 
 # Run a prompt
-curl -X POST http://localhost:8000/prompt/run \
+curl -X POST https://ai-platform-backend-vtvta23tia-uc.a.run.app/prompt/run \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"What is 2+2?","mode":"fast"}'
-
-# Compare two prompts
-curl -X POST http://localhost:8000/prompt/compare \
-  -H "Content-Type: application/json" \
-  -d '{"prompt_a":"Explain RAG briefly","prompt_b":"Explain RAG in detail","system_prompt":""}'
-
-# Ingest a PDF
-curl -X POST http://localhost:8000/rag/ingest \
-  -F "file=@your_file.pdf" \
-  -F "collection_name=documents"
+  -d '{"prompt":"What is RAG?","mode":"fast"}'
 
 # RAG chat
-curl -X POST http://localhost:8000/rag/chat \
+curl -X POST https://ai-platform-backend-vtvta23tia-uc.a.run.app/rag/chat \
   -H "Content-Type: application/json" \
-  -d '{"query":"What is this document about?","collection_name":"documents","top_k":5,"mode":"fast"}'
-
-# Research agent
-curl -X POST http://localhost:8000/agents/research \
-  -H "Content-Type: application/json" \
-  -d '{"question":"What is LangGraph?","mode":"fast"}'
+  -d '{"query":"Summarise the document","collection_name":"documents","top_k":5,"mode":"fast"}'
 
 # View eval logs
-curl http://localhost:8000/eval/logs?limit=10
+curl https://ai-platform-backend-vtvta23tia-uc.a.run.app/eval/logs?limit=10
 ```
-
-## Architecture
-
-```
-FastAPI backend
-├── /prompt  — LLM calls with fallback chain + injection detection
-├── /rag     — PDF ingestion + retrieval-augmented chat
-├── /agents  — LangGraph research agent + CrewAI blog pipeline
-└── /eval    — RAGAS scoring + cost/latency metrics
-
-Services
-├── llm.py          — model fallback chain (Sonnet → Haiku on error)
-├── embeddings.py   — sentence-transformers + Redis cache
-├── vector_store.py — ChromaDB add/query
-├── rag_service.py  — PDF chunking + RAG chat
-├── guardrails.py   — injection detection + PII redaction (Presidio)
-├── evaluation.py   — RAGAS faithfulness + answer relevancy
-├── research_agent.py — LangGraph: search → draft → reflect → refine
-└── crew_service.py — CrewAI: Researcher → Writer → Editor
-```
-
-## Models
-
-| Mode  | Model               | Use case              |
-|-------|---------------------|-----------------------|
-| fast  | claude-sonnet-4     | Default, cost-effective |
-| smart | claude-opus-4       | Complex reasoning     |
-| fallback | claude-haiku-4   | Timeout/error fallback |
